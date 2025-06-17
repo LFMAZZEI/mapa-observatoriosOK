@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Mapa Interativo de Observatórios</title>
+    <title>Mapa Interativo dos Observatórios</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body { margin: 0; font-family: Arial, sans-serif; }
@@ -12,16 +12,17 @@
             padding: 1em;
             text-align: center;
         }
-        footer {
-            background-color: #f1f1f1;
+        #filtro, footer {
             text-align: center;
             padding: 0.5em;
-            font-size: 0.9em;
-            color: #333;
         }
         #map {
-            height: calc(100vh - 120px);
+            height: calc(100vh - 180px);
             width: 100%;
+        }
+        select, button {
+            padding: 5px;
+            margin: 5px;
         }
     </style>
     <link rel="stylesheet" href="leaflet.css">
@@ -30,14 +31,23 @@
 </head>
 <body>
     <header>
-        <h1>Mapa Interativo dos Observatórios de Políticas Públicas de Saúde</h1>
-        <p>Projeto de Mapeamento Institucional – ENSP / FIOCRUZ</p>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/4/42/Fiocruz_logo.png" alt="FIOCRUZ" height="50">
+        <h1>Mapa Interativo dos Observatórios</h1>
+        <p>ENSP / FIOCRUZ – Políticas Públicas de Saúde</p>
     </header>
+
+    <div id="filtro">
+        <label for="pais">Filtrar por país:</label>
+        <select id="pais">
+            <option value="">Todos</option>
+        </select>
+        <button onclick="baixarCSV()">Baixar planilha</button>
+    </div>
 
     <div id="map"></div>
 
     <footer>
-        Desenvolvido com QGIS2Web · Dados georreferenciados por <strong>LFMazzei</strong>
+        Desenvolvido com QGIS2Web · <strong>LFMazzei</strong> · GitHub Pages
     </footer>
 
     <script>
@@ -45,17 +55,54 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
-        var layer = L.geoJson(observatorios_para_qgis, {
+
+        var todosDados = observatorios_para_qgis.features;
+        var camadas = L.geoJSON([], {
             onEachFeature: function (feature, layer) {
-                if (feature.properties) {
-                    var popup = '';
-                    for (var key in feature.properties) {
-                        popup += '<strong>' + key + '</strong>: ' + feature.properties[key] + '<br>';
-                    }
-                    layer.bindPopup(popup);
+                var popup = '';
+                for (var key in feature.properties) {
+                    popup += '<strong>' + key + '</strong>: ' + feature.properties[key] + '<br>';
                 }
+                layer.bindPopup(popup);
             }
         }).addTo(map);
+
+        // preencher filtro de países
+        var select = document.getElementById('pais');
+        var paises = new Set();
+        todosDados.forEach(f => {
+            if (f.properties["país"]) paises.add(f.properties["país"]);
+        });
+        Array.from(paises).sort().forEach(p => {
+            var opt = document.createElement('option');
+            opt.value = p; opt.textContent = p;
+            select.appendChild(opt);
+        });
+
+        function atualizarMapa() {
+            var pais = select.value;
+            var filtrados = (pais === '') ? todosDados : todosDados.filter(f => f.properties["país"] === pais);
+            camadas.clearLayers();
+            camadas.addData(filtrados);
+        }
+
+        select.addEventListener('change', atualizarMapa);
+        atualizarMapa();
+
+        function baixarCSV() {
+            var linhas = ['"nome","país","latitude","longitude"'];
+            todosDados.forEach(f => {
+                var p = f.properties;
+                linhas.push(`"${p.nomedoobservatorio}","${p.país}","${p.latitude}","${p.longitude}"`);
+            });
+            var blob = new Blob([linhas.join('\n')], {type:'text/csv'});
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = "observatorios.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
     </script>
 </body>
 </html>
